@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Abdominal Survey</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap");
+    :root {
+      --bg: radial-gradient(circle at 20% 20%, #f3f7ff 0, #eef2ff 20%, #f8fbff 60%, #ffffff 100%);
+      --panel: #ffffff;
+      --ink: #0f172a;
+      --muted: #475569;
+      --accent: #4f46e5;
+      --accent-2: #22c55e;
+      --line: rgba(15, 23, 42, 0.08);
+      --shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      font-family: "Space Grotesk", "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .grid {
+      width: min(1100px, 100%);
+      display: grid;
+      gap: 18px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,0.7);
+      backdrop-filter: blur(6px);
+    }
+    header .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: #ecfdf3;
+      color: #166534;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+    }
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #f8fafc;
+      color: var(--muted);
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+    .title {
+      font-size: 30px;
+      margin: 8px 0 4px;
+      line-height: 1.2;
+    }
+    .subtitle {
+      color: var(--muted);
+      margin: 0 0 18px;
+    }
+    .options {
+      display: grid;
+      gap: 12px;
+      margin: 18px 0 12px;
+    }
+    .option {
+      border: 1px solid var(--line);
+      padding: 14px 16px;
+      border-radius: 14px;
+      background: #f8fafc;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all 0.16s ease;
+      font-weight: 600;
+    }
+    .option:hover { border-color: rgba(79, 70, 229, 0.3); background: #eef2ff; }
+    .option.active { border-color: var(--accent); background: #eef2ff; color: var(--ink); }
+    .option span.key {
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      background: #e2e8f0;
+      color: #111827;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      margin-right: 12px;
+      flex-shrink: 0;
+    }
+    .free-input {
+      width: 100%;
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: #f8fafc;
+      font-size: 16px;
+      font-weight: 600;
+      font-family: inherit;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .free-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+      background: #fff;
+    }
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-top: 20px;
+    }
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+      font-family: inherit;
+    }
+    .btn-primary {
+      background: linear-gradient(120deg, #4f46e5, #6366f1);
+      color: white;
+      box-shadow: 0 10px 30px rgba(79, 70, 229, 0.35);
+    }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+    button:hover:not(:disabled) { transform: translateY(-1px); }
+    .hint {
+      color: var(--muted);
+      margin-top: 6px;
+      font-size: 14px;
+    }
+    .status {
+      margin-top: 14px;
+      color: #b91c1c;
+      font-weight: 600;
+      min-height: 22px;
+    }
+    .history {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .history .item {
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: #f8fafc;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .summary {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      background: #f0fdf4;
+      color: #166534;
+      margin-top: 18px;
+    }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 10px;
+      background: #eef2ff;
+      color: #312e81;
+      font-weight: 700;
+      margin-right: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="grid">
+    <header>
+      <div class="badge">Live survey</div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span id="connectionStatus" class="pill">Connecting to API…</span>
+        <button id="restartBtn" class="btn-secondary">Restart</button>
+      </div>
+    </header>
+
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="pill" id="stepInfo">Step 1</div>
+          <div class="title" id="questionTitle">Loading question…</div>
+          <p class="subtitle" id="questionType">Typeform-style flow</p>
+        </div>
+        <div class="pill" id="metaInfo">Survey v1</div>
+      </div>
+
+      <div id="answerRegion">
+        <div class="hint" id="questionHint"></div>
+        <div class="options" id="optionsContainer"></div>
+        <input id="textInput" class="free-input" placeholder="" style="display:none;" />
+      </div>
+
+      <div class="status" id="status"></div>
+
+      <div class="nav">
+        <button id="prevBtn" class="btn-secondary">Previous</button>
+        <div style="display:flex; gap:8px;">
+          <button id="nextBtn" class="btn-primary">Next question</button>
+        </div>
+      </div>
+
+      <div class="history" id="history"></div>
+      <div class="summary" id="summary" style="display:none;"></div>
+    </section>
+  </div>
+
+  <script>
+    const paramBase = new URLSearchParams(window.location.search).get("api");
+    const defaultBase = `${window.location.protocol}//${window.location.hostname}:8000/api`;
+    const API_BASE = (paramBase || defaultBase).replace(/\/$/, "");
+
+    const state = {
+      history: [], // { question, answer }
+      currentQuestion: null,
+      done: false,
+      meta: null,
+    };
+
+    const els = {
+      questionTitle: document.getElementById("questionTitle"),
+      questionType: document.getElementById("questionType"),
+      questionHint: document.getElementById("questionHint"),
+      optionsContainer: document.getElementById("optionsContainer"),
+      textInput: document.getElementById("textInput"),
+      status: document.getElementById("status"),
+      prevBtn: document.getElementById("prevBtn"),
+      nextBtn: document.getElementById("nextBtn"),
+      history: document.getElementById("history"),
+      summary: document.getElementById("summary"),
+      connectionStatus: document.getElementById("connectionStatus"),
+      metaInfo: document.getElementById("metaInfo"),
+      stepInfo: document.getElementById("stepInfo"),
+      restartBtn: document.getElementById("restartBtn"),
+    };
+
+    function setStatus(message, isError = false) {
+      els.status.style.color = isError ? "#b91c1c" : "#16a34a";
+      els.status.textContent = message || "";
+    }
+
+    function renderHistory() {
+      els.history.innerHTML = state.history
+        .map(
+          (item, idx) =>
+            `<div class="item"><div style="color:#0f172a;">${idx + 1}. ${item.question.text}</div><div>${item.answer}</div></div>`
+        )
+        .join("");
+      els.stepInfo.textContent = `Step ${state.history.length + 1}`;
+    }
+
+    function renderQuestion(question, presetAnswer) {
+      state.currentQuestion = question;
+      els.summary.style.display = "none";
+      els.optionsContainer.innerHTML = "";
+      els.textInput.style.display = "none";
+      els.textInput.value = "";
+      setStatus("");
+
+      if (!question) {
+        els.questionTitle.textContent = "Survey complete";
+        els.questionType.textContent = "";
+        els.nextBtn.disabled = true;
+        return;
+      }
+
+      els.questionTitle.textContent = question.text;
+      els.questionType.textContent = question.type === "free_text" ? "Short text" : "Select one";
+      els.questionHint.textContent = question.hints?.placeholder || "";
+
+      if (question.type === "free_text") {
+        els.textInput.placeholder = question.hints?.placeholder || "Type your answer";
+        els.textInput.style.display = "block";
+        els.textInput.value = presetAnswer || "";
+      } else if (question.options && Array.isArray(question.options)) {
+        question.options.forEach((opt) => {
+          const button = document.createElement("button");
+          button.className = "option";
+          button.type = "button";
+          button.dataset.key = opt.key;
+          button.innerHTML = `<span class="key">${opt.key.toUpperCase()}</span> <span>${opt.label}</span>`;
+          if (presetAnswer && presetAnswer === opt.key) {
+            button.classList.add("active");
+          }
+          button.onclick = () => {
+            document.querySelectorAll(".option").forEach((el) => el.classList.remove("active"));
+            button.classList.add("active");
+          };
+          els.optionsContainer.appendChild(button);
+        });
+      }
+
+      els.prevBtn.disabled = state.history.length === 0;
+      els.nextBtn.textContent = "Next question";
+    }
+
+    function readAnswer() {
+      if (!state.currentQuestion) return null;
+      if (state.currentQuestion.type === "free_text") {
+        return els.textInput.value.trim();
+      }
+      const active = document.querySelector(".option.active");
+      return active ? active.dataset.key : null;
+    }
+
+    async function callApi(path, payload) {
+      const res = await fetch(`${API_BASE}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "API error");
+      }
+      return res.json();
+    }
+
+    async function loadFirstQuestion() {
+      setStatus("Loading first question…");
+      try {
+        const data = await callApi("/survey/next", { question_id: null, answer: null });
+        els.connectionStatus.textContent = "Connected to API";
+        els.connectionStatus.style.background = "#ecfdf3";
+        els.connectionStatus.style.color = "#166534";
+        state.meta = data.meta;
+        els.metaInfo.textContent = `Survey v${data.meta?.version || "1"}`;
+        renderQuestion(data.next);
+        setStatus("");
+      } catch (err) {
+        setStatus(err.message || "Unable to load survey", true);
+        els.connectionStatus.textContent = "API unreachable";
+        els.connectionStatus.style.background = "#fef2f2";
+        els.connectionStatus.style.color = "#991b1b";
+      }
+    }
+
+    async function goNext() {
+      if (state.done) return;
+      const answer = readAnswer();
+      if (!answer) {
+        setStatus("Choose or enter an answer before continuing.", true);
+        return;
+      }
+
+      const snapshot = { question: state.currentQuestion, answer };
+      state.history.push(snapshot);
+      renderHistory();
+
+      try {
+        const data = await callApi("/survey/next", {
+          question_id: state.currentQuestion.id,
+          answer,
+        });
+
+        if (data.done) {
+          state.done = true;
+          els.nextBtn.textContent = "Completed";
+          els.prevBtn.disabled = true;
+          await showSummary();
+          return;
+        }
+
+        renderQuestion(data.next);
+      } catch (err) {
+        state.history.pop();
+        renderHistory();
+        setStatus(err.message || "Unable to advance.", true);
+      }
+    }
+
+    async function showSummary() {
+      try {
+        const data = await callApi("/survey/evaluate", {
+          history: state.history.map((item) => ({
+            question_id: item.question.id,
+            answer: item.answer,
+          })),
+        });
+        const summary = data.summary || {};
+        els.summary.style.display = "block";
+        els.summary.innerHTML = `
+          <div style="font-size:18px; font-weight:700; margin-bottom:6px;">Summary</div>
+         <div>Start detail: <span class="tag">${summary.started_at_precision || "n/a"}</span> ${summary.started_at_value || ""}</div>
+          <div>Pain quality: <span class="tag">${summary.pain_quality || "n/a"}</span></div>
+          <div>Pain score: <span class="tag">${summary.pain_scale ?? "n/a"}</span></div>
+          <div>Status: <span class="tag">${summary.still_pain === null ? "unknown" : summary.still_pain ? "still in pain" : "no pain"}</span></div>
+          <div style="margin-top:8px;">Needs attention: ${summary.requires_attention ? "Yes" : "No"}</div>`;
+
+        els.questionTitle.textContent = "Survey complete";
+        els.questionType.textContent = "";
+        els.questionHint.textContent = "";
+        els.optionsContainer.innerHTML = "";
+        els.textInput.style.display = "none";
+        setStatus("Thank you — all answers captured.");
+      } catch (err) {
+        setStatus("Survey finished but summary failed: " + (err.message || ""), true);
+      }
+    }
+
+    function goPrev() {
+      if (state.history.length === 0) return;
+      const last = state.history.pop();
+      state.done = false;
+      renderHistory();
+      renderQuestion(last.question, last.answer);
+    }
+
+    function restart() {
+      state.history = [];
+      state.done = false;
+      renderHistory();
+      renderQuestion(state.currentQuestion, null);
+      loadFirstQuestion();
+    }
+
+    els.nextBtn.addEventListener("click", goNext);
+    els.prevBtn.addEventListener("click", goPrev);
+    els.restartBtn.addEventListener("click", restart);
+
+    loadFirstQuestion();
+  </script>
+</body>
+</html>
