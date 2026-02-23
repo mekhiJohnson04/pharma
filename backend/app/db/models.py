@@ -10,7 +10,9 @@ from sqlalchemy import (
     Enum,
     JSON,
     Boolean,
-    Text
+    Text,
+    Integer, 
+    Float
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -94,8 +96,6 @@ class Patient(Base): # Key Constraint: Patient must be identifiable not necessar
 
     patient_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4) # internal no need for name, PV allows limited data
     sex = Column(String, nullable=True) # male | female
-    age = Column(int, nullable=False)
-    weight = Optional(Column(float, nullable=True))
+    age = Column(Integer, nullable=False)
+    weight = Column(Float, nullable=True)
 
-class Reporter(Base):
-    __tablename__ = "reporter"

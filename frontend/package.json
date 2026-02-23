@@ -4,7 +4,7 @@
   "description": "Static dashboard for the abdominal survey app",
   "private": true,
   "scripts": {
-    "dev": "python3 -m http.server 3000",
+    "dev": "cd public && python3 -m http.server 3000",
     "dev:port": "PORT=${PORT:-3000} python3 -m http.server $PORT",
     "start": "npm run dev"
   }

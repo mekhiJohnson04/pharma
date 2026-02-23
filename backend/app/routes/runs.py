@@ -22,9 +22,6 @@ from app.core.config import SURVEY_VERSION
 
 router = APIRouter()
 
-# Immutable config/data references (read-only):
-QMAP = SURVEY_DEFINITION["questions"]   # convenience alias to the question graph
-
 # One store instance per process
 STORE = InMemoryRunStore()
  
@@ -68,12 +65,12 @@ def _require_active(run: SurveyRun) -> None:
             },
         )
 
+# ---------- Comment this function out for now ---------
+"""def _build_answer_log(run_id: str):
 
-def _build_answer_log(run_id: str):
-    """
     Based off of the run_id, any question that has already been answered will 
     be stored in local memory for now until database is set up.
-    """
+
     run = STORE.get_run(run_id)
     _require_run(run_id)
 
@@ -96,10 +93,7 @@ def _build_answer_log(run_id: str):
         }
         results.append(record)
 
-        return results
-
-    
-        
+        return results"""
 
 def _cursor_to_node(cursor: Optional[str], active_section):
     """
@@ -158,20 +152,20 @@ def begin_run():
     """
     run_id = _new_run_id()
     cursor = START_ID           # points at the first question id (e.g., "q1")
-    node = _cursor_to_node(cursor)
 
     # Build + persist a brand new run record
     record: SurveyRun = {
         "run_id": run_id,
         "version": SURVEY_VERSION,
         "status": "active",
-        "active_section": "min_criteria",
+        "active_section": "min_criteria_questions",
         "cursor": cursor,
         "history": [],
         "answers_by_id": {},
         "summary": None,
     }
     STORE.create_run(record)
+    node = _cursor_to_node(cursor, record["active_section"])
 
     # Format the node as a "next" payload for the client
     next_payload = show_question(node)["next"]
@@ -220,7 +214,7 @@ def resume_run(req: ResumeRequest):
         }
 
     # Active: we must have a valid cursor pointing at a node
-    node = _cursor_to_node(cursor)
+    node = _cursor_to_node(cursor=cursor, active_section=active_section)
     next_payload = show_question(node)["next"]
 
     return {

@@ -81,6 +81,7 @@
       font-weight: 600;
       letter-spacing: 0.01em;
     }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
     .title {
       font-size: 30px;
       margin: 8px 0 4px;
@@ -106,6 +107,8 @@
       align-items: center;
       transition: all 0.16s ease;
       font-weight: 600;
+      text-align: left;
+      width: 100%;
     }
     .option:hover { border-color: rgba(79, 70, 229, 0.3); background: #eef2ff; }
     .option.active { border-color: var(--accent); background: #eef2ff; color: var(--ink); }
@@ -176,6 +179,7 @@
       color: #b91c1c;
       font-weight: 600;
       min-height: 22px;
+      white-space: pre-wrap;
     }
     .history {
       display: grid;
@@ -218,6 +222,7 @@
       <div class="badge">Live survey</div>
       <div style="display:flex; align-items:center; gap:10px;">
         <span id="connectionStatus" class="pill">Connecting to API…</span>
+        <span id="runInfo" class="pill mono" style="display:none;"></span>
         <button id="restartBtn" class="btn-secondary">Restart</button>
       </div>
     </header>
@@ -229,7 +234,7 @@
           <div class="title" id="questionTitle">Loading question…</div>
           <p class="subtitle" id="questionType">Typeform-style flow</p>
         </div>
-        <div class="pill" id="metaInfo">Survey v1</div>
+        <div class="pill" id="metaInfo">Survey</div>
       </div>
 
       <div id="answerRegion">
@@ -241,7 +246,7 @@
       <div class="status" id="status"></div>
 
       <div class="nav">
-        <button id="prevBtn" class="btn-secondary">Previous</button>
+        <button id="prevBtn" class="btn-secondary" disabled title="Back is disabled (no rewind endpoint).">Previous</button>
         <div style="display:flex; gap:8px;">
           <button id="nextBtn" class="btn-primary">Next question</button>
         </div>
@@ -253,15 +258,21 @@
   </div>
 
   <script>
+    // Compatible with runs.py:
+    // POST /api/survey/begin  -> { run_id, next, done, version, meta }
+    // POST /api/survey/answer -> { run_id, next, done, summary?, version, meta }
+
     const paramBase = new URLSearchParams(window.location.search).get("api");
     const defaultBase = `${window.location.protocol}//${window.location.hostname}:8000/api`;
     const API_BASE = (paramBase || defaultBase).replace(/\/$/, "");
 
     const state = {
-      history: [], // { question, answer }
+      run_id: null,
+      history: [], // client-side display only
       currentQuestion: null,
       done: false,
       meta: null,
+      version: null,
     };
 
     const els = {
@@ -279,6 +290,7 @@
       metaInfo: document.getElementById("metaInfo"),
       stepInfo: document.getElementById("stepInfo"),
       restartBtn: document.getElementById("restartBtn"),
+      runInfo: document.getElementById("runInfo"),
     };
 
     function setStatus(message, isError = false) {
@@ -286,11 +298,14 @@
       els.status.textContent = message || "";
     }
 
+    function escapeHtml(str) {
+      return String(str || "").replace(/[&<>"']/g, (m) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+    }
+
     function renderHistory() {
       els.history.innerHTML = state.history
-        .map(
-          (item, idx) =>
-            `<div class="item"><div style="color:#0f172a;">${idx + 1}. ${item.question.text}</div><div>${item.answer}</div></div>`
+        .map((item, idx) =>
+          `<div class="item"><div style="color:#0f172a;">${idx + 1}. ${escapeHtml(item.question.text)}</div><div>${escapeHtml(item.answer)}</div></div>`
         )
         .join("");
       els.stepInfo.textContent = `Step ${state.history.length + 1}`;
@@ -307,6 +322,7 @@
       if (!question) {
         els.questionTitle.textContent = "Survey complete";
         els.questionType.textContent = "";
+        els.questionHint.textContent = "";
         els.nextBtn.disabled = true;
         return;
       }
@@ -319,16 +335,15 @@
         els.textInput.placeholder = question.hints?.placeholder || "Type your answer";
         els.textInput.style.display = "block";
         els.textInput.value = presetAnswer || "";
+        setTimeout(() => els.textInput.focus(), 0);
       } else if (question.options && Array.isArray(question.options)) {
         question.options.forEach((opt) => {
           const button = document.createElement("button");
           button.className = "option";
           button.type = "button";
           button.dataset.key = opt.key;
-          button.innerHTML = `<span class="key">${opt.key.toUpperCase()}</span> <span>${opt.label}</span>`;
-          if (presetAnswer && presetAnswer === opt.key) {
-            button.classList.add("active");
-          }
+          button.innerHTML = `<span class="key">${String(opt.key).toUpperCase()}</span> <span>${escapeHtml(opt.label)}</span>`;
+          if (presetAnswer && presetAnswer === opt.key) button.classList.add("active");
           button.onclick = () => {
             document.querySelectorAll(".option").forEach((el) => el.classList.remove("active"));
             button.classList.add("active");
@@ -337,15 +352,14 @@
         });
       }
 
-      els.prevBtn.disabled = state.history.length === 0;
+      els.prevBtn.disabled = true; // no rewind endpoint
+      els.nextBtn.disabled = false;
       els.nextBtn.textContent = "Next question";
     }
 
     function readAnswer() {
       if (!state.currentQuestion) return null;
-      if (state.currentQuestion.type === "free_text") {
-        return els.textInput.value.trim();
-      }
+      if (state.currentQuestion.type === "free_text") return els.textInput.value.trim();
       const active = document.querySelector(".option.active");
       return active ? active.dataset.key : null;
     }
@@ -356,46 +370,74 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload || {}),
       });
+
+      const text = await res.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch { /* ignore */ }
+
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "API error");
+        const msg =
+          (data && data.detail && data.detail.error && data.detail.error.message) ||
+          (data && data.detail && typeof data.detail === "string" && data.detail) ||
+          text ||
+          "API error";
+        throw new Error(msg);
       }
-      return res.json();
+      return data;
     }
 
-    async function loadFirstQuestion() {
-      setStatus("Loading first question…");
+    async function beginRun() {
+      setStatus("Starting run…");
       try {
-        const data = await callApi("/survey/next", { question_id: null, answer: null });
+        const data = await callApi("/survey/begin", {});
+        state.run_id = data.run_id;
+        state.done = !!data.done;
+        state.meta = data.meta || null;
+        state.version = data.version || null;
+
         els.connectionStatus.textContent = "Connected to API";
         els.connectionStatus.style.background = "#ecfdf3";
         els.connectionStatus.style.color = "#166534";
-        state.meta = data.meta;
-        els.metaInfo.textContent = `Survey v${data.meta?.version || "1"}`;
+
+        els.runInfo.style.display = "inline-flex";
+        els.runInfo.textContent = `run: ${state.run_id}`;
+
+        els.metaInfo.textContent = `Survey v${data.version ?? (data.meta?.version || "1")}`;
+
+        state.history = [];
+        renderHistory();
         renderQuestion(data.next);
         setStatus("");
       } catch (err) {
-        setStatus(err.message || "Unable to load survey", true);
+        setStatus(err.message || "Unable to start run", true);
         els.connectionStatus.textContent = "API unreachable";
         els.connectionStatus.style.background = "#fef2f2";
         els.connectionStatus.style.color = "#991b1b";
+        els.runInfo.style.display = "none";
       }
     }
 
     async function goNext() {
       if (state.done) return;
+      if (!state.run_id) {
+        setStatus("No run loaded. Click Restart.", true);
+        return;
+      }
+
       const answer = readAnswer();
       if (!answer) {
         setStatus("Choose or enter an answer before continuing.", true);
         return;
       }
 
+      // optimistic client-side history
       const snapshot = { question: state.currentQuestion, answer };
       state.history.push(snapshot);
       renderHistory();
 
       try {
-        const data = await callApi("/survey/next", {
+        const data = await callApi("/survey/answer", {
+          run_id: state.run_id,
           question_id: state.currentQuestion.id,
           answer,
         });
@@ -403,69 +445,51 @@
         if (data.done) {
           state.done = true;
           els.nextBtn.textContent = "Completed";
-          els.prevBtn.disabled = true;
-          await showSummary();
+          els.nextBtn.disabled = true;
+          showSummary(data.summary);
           return;
         }
 
         renderQuestion(data.next);
       } catch (err) {
+        // rollback history on failure
         state.history.pop();
         renderHistory();
         setStatus(err.message || "Unable to advance.", true);
       }
     }
 
-    async function showSummary() {
-      try {
-        const data = await callApi("/survey/evaluate", {
-          history: state.history.map((item) => ({
-            question_id: item.question.id,
-            answer: item.answer,
-          })),
-        });
-        const summary = data.summary || {};
-        els.summary.style.display = "block";
-        els.summary.innerHTML = `
-          <div style="font-size:18px; font-weight:700; margin-bottom:6px;">Summary</div>
-         <div>Start detail: <span class="tag">${summary.started_at_precision || "n/a"}</span> ${summary.started_at_value || ""}</div>
-          <div>Pain quality: <span class="tag">${summary.pain_quality || "n/a"}</span></div>
-          <div>Pain score: <span class="tag">${summary.pain_scale ?? "n/a"}</span></div>
-          <div>Status: <span class="tag">${summary.still_pain === null ? "unknown" : summary.still_pain ? "still in pain" : "no pain"}</span></div>
-          <div style="margin-top:8px;">Needs attention: ${summary.requires_attention ? "Yes" : "No"}</div>`;
+    function showSummary(summary) {
+      const s = summary || {};
+      els.summary.style.display = "block";
+      els.summary.innerHTML = `
+        <div style="font-size:18px; font-weight:700; margin-bottom:6px;">Summary</div>
+        <div>Start detail: <span class="tag">${escapeHtml(s.started_at_precision || "n/a")}</span> ${escapeHtml(s.started_at_value || "")}</div>
+        <div>Pain quality: <span class="tag">${escapeHtml(s.pain_quality || "n/a")}</span></div>
+        <div>Pain score: <span class="tag">${s.pain_scale ?? "n/a"}</span></div>
+        <div>Status: <span class="tag">${s.still_pain === null ? "unknown" : (s.still_pain ? "still in pain" : "no pain")}</span></div>
+        <div style="margin-top:8px;">Needs attention: ${s.requires_attention ? "Yes" : "No"}</div>
+      `;
 
-        els.questionTitle.textContent = "Survey complete";
-        els.questionType.textContent = "";
-        els.questionHint.textContent = "";
-        els.optionsContainer.innerHTML = "";
-        els.textInput.style.display = "none";
-        setStatus("Thank you — all answers captured.");
-      } catch (err) {
-        setStatus("Survey finished but summary failed: " + (err.message || ""), true);
-      }
-    }
-
-    function goPrev() {
-      if (state.history.length === 0) return;
-      const last = state.history.pop();
-      state.done = false;
-      renderHistory();
-      renderQuestion(last.question, last.answer);
+      els.questionTitle.textContent = "Survey complete";
+      els.questionType.textContent = "";
+      els.questionHint.textContent = "";
+      els.optionsContainer.innerHTML = "";
+      els.textInput.style.display = "none";
+      setStatus("Thank you — all answers captured.");
     }
 
     function restart() {
       state.history = [];
       state.done = false;
       renderHistory();
-      renderQuestion(state.currentQuestion, null);
-      loadFirstQuestion();
+      beginRun();
     }
 
     els.nextBtn.addEventListener("click", goNext);
-    els.prevBtn.addEventListener("click", goPrev);
     els.restartBtn.addEventListener("click", restart);
 
-    loadFirstQuestion();
+    beginRun();
   </script>
 </body>
 </html>
